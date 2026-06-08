@@ -1,3 +1,7 @@
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 import cv2
 import base64
 import requests
@@ -5,10 +9,9 @@ from ultralytics import YOLO
 import matplotlib.pyplot as plt
 
 # ==================== CONFIGURATION ====================
-# Jalur file disesuaikan dengan struktur folder di VS Code kamu
 MODEL_PATH = "runs/detect/train/weights/best.pt"
 VIDEO_PATH = "src/video.mp4"
-API_URL = "http://127.0.0.1:5000/upload"
+API_URL = os.getenv("API_URL", "http://127.0.0.1:5000/upload") 
 
 # 1. Load Model YOLOv8
 try:
