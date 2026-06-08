@@ -8,551 +8,805 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #0f172a; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
-        .leaflet-container { background: #0f172a !important; }
+        * { box-sizing: border-box; }
+        body { font-family: 'IBM Plex Sans', sans-serif; }
+        code, .mono { font-family: 'IBM Plex Mono', monospace; }
+
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+
+        .leaflet-container { background: #f8fafc !important; }
+
+        /* Stat cards */
+        .stat-card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            transition: box-shadow 0.2s;
+        }
+        .stat-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.07); }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            border-radius: 12px 12px 0 0;
+        }
+        .stat-card.amber::before { background: #f59e0b; }
+        .stat-card.cyan::before  { background: #06b6d4; }
+        .stat-card.indigo::before { background: #6366f1; }
+        .stat-card.purple::before { background: #a855f7; }
+
+        /* Toast notification */
+        #toast-container {
+            position: fixed;
+            top: 72px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
+        }
+        .toast {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-left: 4px solid #f59e0b;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 13px;
+            color: #334155;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 260px;
+            animation: slideIn 0.3s ease, fadeOut 0.4s ease 2.8s forwards;
+            pointer-events: auto;
+        }
+        .toast.critical { border-left-color: #ef4444; }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; transform: translateX(20px); }
+        }
+
+        /* Table row hover */
+        .log-row { cursor: pointer; transition: background 0.15s; }
+        .log-row:hover { background: #f8fafc; }
+        .log-row.selected { background: #fffbeb; border-left: 3px solid #f59e0b; }
+
+        /* Badge */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 4px;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+        .badge-critical { background: #fee2e2; color: #dc2626; }
+        .badge-warning  { background: #fef3c7; color: #d97706; }
+        .badge-ok       { background: #dcfce7; color: #16a34a; }
+
+        /* Status pulse */
+        .pulse-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+            position: relative;
+        }
+        .pulse-dot::after {
+            content: '';
+            position: absolute;
+            inset: -3px;
+            border-radius: 50%;
+            background: #22c55e;
+            opacity: 0.4;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse { 0%,100%{transform:scale(1);opacity:.4} 50%{transform:scale(1.6);opacity:0} }
+
+        /* Filter buttons */
+        .filter-btn {
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .filter-btn:hover { border-color: #94a3b8; color: #334155; }
+        .filter-btn.active { background: #f59e0b; border-color: #f59e0b; color: #fff; font-weight: 700; }
+        .filter-btn.period { background: #f8fafc; }
+
+        /* Section card */
+        .section-card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .section-header {
+            padding: 14px 20px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Chart bars */
+        .chart-bar {
+            flex: 1;
+            background: #e2e8f0;
+            border-radius: 4px 4px 0 0;
+            position: relative;
+            min-height: 4px;
+            transition: height 0.4s ease;
+            cursor: pointer;
+        }
+        .chart-bar:hover .bar-fill { opacity: 0.8; }
+        .bar-fill {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            border-radius: 4px 4px 0 0;
+            background: linear-gradient(to top, #f59e0b, #fbbf24);
+            transition: height 0.5s ease;
+        }
+        .bar-tooltip {
+            position: absolute;
+            top: -28px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e293b;
+            color: #fff;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.15s;
+        }
+        .chart-bar:hover .bar-tooltip { opacity: 1; }
+
+        /* Confidence bar */
+        .conf-bar { height: 4px; background: #e2e8f0; border-radius: 99px; overflow: hidden; }
+        .conf-fill { height: 100%; border-radius: 99px; transition: width 0.3s; }
+        .conf-fill.critical { background: #ef4444; }
+        .conf-fill.warning  { background: #f59e0b; }
+
+        /* Divider */
+        .divider { border: none; border-top: 1px solid #f1f5f9; margin: 0; }
+
+        /* Image placeholder */
+        #img-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            gap: 8px;
+            color: #94a3b8;
+        }
+
+        /* Map */
+        #map { border-radius: 0 0 12px 12px; }
+
+        /* Sidebar label */
+        .sidebar-label {
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col">
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
 
-    <header class="bg-slate-900 border-b border-slate-800 px-6 py-4 shadow-md sticky top-0 z-[1000]">
-        <div class="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div class="flex items-center gap-3">
-                <div class="bg-amber-500 text-slate-950 p-2.5 rounded-lg shadow-lg shadow-amber-500/20">
-                    <i class="fa-solid fa-shield-halved text-xl"></i>
-                </div>
-                <div>
-                    <h1 class="text-xl font-bold tracking-wide bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
-                        ROAD DAMAGE INTELLIGENCE SYSTEM <span class="text-xs text-slate-500 font-mono">v3.0</span>
-                    </h1>
-                    <p class="text-xs text-slate-400">Sistem Manajemen & Pemetaan Jalan Otomatis Berbasis AI</p>
-                </div>
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<!-- Header -->
+<header style="background:#fff; border-bottom:1px solid #e2e8f0;" class="sticky top-0 z-[1000] px-6 py-0">
+    <div class="max-w-[1700px] mx-auto flex items-center justify-between h-14">
+        <!-- Brand -->
+        <div class="flex items-center gap-3">
+            <div style="background:#f59e0b; border-radius:8px; width:32px; height:32px;" class="flex items-center justify-center text-white">
+                <i class="fa-solid fa-shield-halved text-sm"></i>
             </div>
-            
-            <div class="flex flex-wrap items-center gap-4">
-                <button onclick="exportToCSV()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-2 rounded-lg text-xs flex items-center gap-2 transition-all shadow-lg shadow-emerald-600/20">
-                    <i class="fa-solid fa-file-excel text-sm"></i> <span>CSV Export</span>
-                </button>
-                <button id="audio-toggle" onclick="toggleAudio()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-2 rounded-lg text-xs flex items-center gap-2 transition-all">
-                    <i id="audio-icon" class="fa-solid fa-volume-high text-emerald-400"></i> <span id="audio-text">Radar: ON</span>
-                </button>
-                <div class="flex items-center gap-2 bg-slate-800 px-3 py-2 rounded-lg border border-slate-700 text-xs hidden sm:flex">
-                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-                    <span class="text-slate-300 font-medium">Online</span>
-                </div>
-                
-                <div class="flex items-center gap-3 border-l border-slate-800 pl-4">
-                    <div class="text-right hidden md:block">
-                        <p class="text-[9px] text-slate-500 uppercase tracking-wider">Operator</p>
-                        <p class="text-xs font-bold text-amber-400 font-mono">@{{ username }}</p>
-                    </div>
-                    <a href="/logout" class="bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white px-3 py-1.5 rounded-lg border border-rose-500/20 text-xs font-semibold transition-all flex items-center gap-1.5">
-                        <i class="fa-solid fa-right-from-bracket"></i> Keluar
-                    </a>
-                </div>
-            </div>
-        </div>
-    </header>
-
-    <main class="flex-1 p-6 max-w-[1650px] w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        <div class="lg:col-span-7 flex flex-col gap-6">
-            
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-lg flex items-center justify-between">
-                    <div>
-                        <p class="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Total Temuan</p>
-                        <h3 id="total-detections" class="text-xl font-black text-amber-400 mt-1">0</h3>
-                    </div>
-                    <div class="text-slate-700 text-2xl"><i class="fa-solid fa-road-barrier"></i></div>
-                </div>
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-lg flex items-center justify-between">
-                    <div>
-                        <p class="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Hari Ini</p>
-                        <h3 id="hari-ini" class="text-xl font-black text-cyan-400 mt-1">0</h3>
-                    </div>
-                    <div class="text-slate-700 text-2xl"><i class="fa-solid fa-calendar-day"></i></div>
-                </div>
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-lg flex items-center justify-between">
-                    <div>
-                        <p class="text-[10px] text-slate-400 font-medium uppercase tracking-wider">7 Hari</p>
-                        <h3 id="minggu-ini" class="text-xl font-black text-indigo-400 mt-1">0</h3>
-                    </div>
-                    <div class="text-slate-700 text-2xl"><i class="fa-solid fa-calendar-week"></i></div>
-                </div>
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-lg flex items-center justify-between">
-                    <div>
-                        <p class="text-[10px] text-slate-400 font-medium uppercase tracking-wider">30 Hari</p>
-                        <h3 id="bulan-ini" class="text-xl font-black text-purple-400 mt-1">0</h3>
-                    </div>
-                    <div class="text-slate-700 text-2xl"><i class="fa-solid fa-calendar-days"></i></div>
-                </div>
-            </div>
-
-            <div class="flex flex-wrap items-center justify-between bg-slate-900 border border-slate-800 px-4 py-2.5 rounded-xl gap-4">
-                <div class="flex items-center gap-2 text-xs">
-                    <span class="text-slate-400 uppercase tracking-wider font-medium">Deteksi Terakhir:</span>
-                    <span id="latest-conf" class="font-bold text-amber-400 font-mono text-xs uppercase">STANDBY</span>
-                </div>
-                <div id="mode-badge" class="text-[10px] bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold px-2.5 py-1 rounded-md text-center">
-                    LIVE MONITORING
-                </div>
-            </div>
-
-            <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-lg flex-1 flex flex-col overflow-hidden min-h-[400px]">
-                <div class="px-5 py-4 border-b border-slate-800 bg-slate-900/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-xs">
-                    <h2 class="font-bold text-slate-200 flex items-center gap-2 text-sm">
-                        <i class="fa-solid fa-list-ul text-amber-500"></i> Log Riwayat Telemetri
-                    </h2>
-                    
-                    <div class="flex flex-wrap gap-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800">
-                        <button onclick="setFilter('all')" id="filter-all" class="px-2.5 py-1 rounded bg-amber-500 text-slate-950 font-bold transition-all">Semua</button>
-                        <button onclick="setFilter('pothole')" id="filter-pothole" class="px-2.5 py-1 rounded text-slate-400 transition-all">Pothole</button>
-                        <button onclick="setFilter('damage')" id="filter-damage" class="px-2.5 py-1 rounded text-slate-400 transition-all">Damage</button>
-                        <button onclick="loadHistory('today')" class="px-2.5 py-1 rounded bg-cyan-700 text-white font-medium">Hari Ini</button>
-                        <button onclick="loadHistory('week')" class="px-2.5 py-1 rounded bg-indigo-700 text-white font-medium">7 Hari</button>
-                        <button onclick="loadHistory('month')" class="px-2.5 py-1 rounded bg-purple-700 text-white font-medium">30 Hari</button>
-                        <button onclick="loadHistory('all')" class="px-2.5 py-1 rounded bg-emerald-700 text-white font-medium">Semua Data</button>
-                    </div>
-                </div>
-
-                <div class="flex-1 overflow-y-auto">
-                    <table class="w-full text-left border-collapse">
-                        <thead class="bg-slate-950/80 sticky top-0 text-xs font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-800 z-10">
-                            <tr>
-                                <th class="px-5 py-3">Tipe & Bahaya</th>
-                                <th class="px-5 py-3">Confidence</th>
-                                <th class="px-5 py-3">Koordinat GPS</th>
-                                <th class="px-5 py-3 text-center">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody id="table-body" class="divide-y divide-slate-800/40 text-sm">
-                            <tr>
-                                <td colspan="4" class="px-5 py-8 text-center text-slate-500 italic">Menunggu pengiriman telemetri objek...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="px-4 py-2 border-t border-slate-800/60 bg-slate-950 text-[11px] text-slate-500">
-                    * Menampilkan maksimal 20 temuan jalan rusak terbaru agar performa browser tetap ringan.
-                </div>
+            <div>
+                <span class="font-bold text-slate-900 text-sm tracking-tight">Road Damage Intelligence</span>
+                <span class="mono text-xs text-slate-400 ml-2">v3.0</span>
             </div>
         </div>
 
-        <div class="lg:col-span-5 flex flex-col gap-6">
-            
-            <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-lg p-5 flex flex-col relative">
-                <div class="mb-4 border-b border-slate-800 pb-3 flex justify-between items-center">
-                    <div class="flex items-center gap-2">
-                        <i class="fa-solid fa-camera text-orange-500"></i>
-                        <h2 class="font-bold text-slate-200">Visual Evidence Capture</h2>
-                    </div>
-                    <div class="relative flex items-center gap-2">
-                        <div id="new-data-counter" class="hidden bg-rose-600 text-white font-black text-[10px] px-2 py-0.5 rounded-full animate-bounce shadow-md shadow-rose-600/30">+0 Baru</div>
-                        <button id="btn-resume-live" onclick="resumeLiveMode()" class="hidden text-xs bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3 py-1.5 rounded-lg shadow-md transition-all">
-                            <i class="fa-solid fa-circle-play mr-1"></i> Kembali Ke Live
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="h-64 bg-slate-950 border border-slate-800 rounded-lg flex items-center justify-center overflow-hidden relative group">
-                    <div id="placeholder-text" class="text-center p-6">
-                        <i class="fa-regular fa-image text-4xl text-slate-700 mb-2 block"></i>
-                        <p class="text-xs text-slate-500">Belum ada tangkapan visual</p>
-                    </div>
-                    <img id="latest-img" src="" alt="YOLO Screenshot" class="w-full h-full object-contain hidden">
-                    <div id="image-badge" class="absolute bottom-3 left-3 bg-slate-900/90 border border-slate-700 text-[11px] px-2.5 py-1 rounded font-mono hidden">
-                        📍 <span id="badge-coordinates" class="text-slate-300"></span>
-                    </div>
-                </div>
+        <!-- Center status -->
+        <div class="hidden md:flex items-center gap-5">
+            <div id="mode-badge" class="flex items-center gap-2 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full">
+                <div class="pulse-dot"></div>
+                LIVE MONITORING
             </div>
-
-            <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-lg p-5 flex flex-col flex-1 min-h-[320px]">
-                <div class="mb-3 border-b border-slate-800 pb-2 flex items-center gap-2">
-                    <i class="fa-solid fa-map-location-dot text-cyan-400"></i>
-                    <h2 class="font-bold text-slate-200">GIS Map Tracking (Real-time Spreading)</h2>
-                </div>
-                <div id="map" class="flex-1 rounded-lg border border-slate-800 min-h-[220px]"></div>
-            </div>
-
+            <div class="text-xs text-slate-400 mono" id="latest-conf">STANDBY</div>
         </div>
 
-        <div class="lg:col-span-12 bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg flex flex-col gap-4">
-            <div class="flex items-center gap-3 border-b border-slate-800 pb-3">
-                <div class="bg-indigo-500/10 text-indigo-400 p-2 rounded-lg border border-indigo-500/10">
-                    <i class="fa-solid fa-clock-rotate-left text-lg"></i>
+        <!-- Right actions -->
+        <div class="flex items-center gap-3">
+            <button onclick="exportToCSV()" class="flex items-center gap-2 text-xs font-semibold bg-slate-900 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg transition-all">
+                <i class="fa-solid fa-file-csv"></i> Export CSV
+            </button>
+            <button id="audio-toggle" onclick="toggleAudio()" class="flex items-center gap-2 text-xs font-medium border border-slate-200 px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-50 transition-all">
+                <i id="audio-icon" class="fa-solid fa-volume-high text-emerald-500 text-xs"></i>
+                <span id="audio-text">Suara: ON</span>
+            </button>
+            <div class="h-7 w-px bg-slate-200"></div>
+            <div class="text-right hidden lg:block">
+                <div class="text-[10px] text-slate-400 uppercase tracking-wider">Operator</div>
+                <div class="text-xs font-bold text-slate-700 mono">@{{ username }}</div>
+            </div>
+            <a href="/logout" class="flex items-center gap-1.5 text-xs font-semibold text-rose-500 hover:bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-200 transition-all">
+                <i class="fa-solid fa-right-from-bracket"></i> Keluar
+            </a>
+        </div>
+    </div>
+</header>
+
+<main class="flex-1 px-6 py-5 max-w-[1700px] w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+    <!-- LEFT COLUMN -->
+    <div class="lg:col-span-8 flex flex-col gap-5">
+
+        <!-- Stat Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="stat-card amber">
+                <div class="sidebar-label">Total Temuan</div>
+                <div id="total-detections" class="text-2xl font-bold text-slate-900 mono mt-1">0</div>
+                <i class="fa-solid fa-road-barrier text-slate-200 text-3xl absolute bottom-3 right-4"></i>
+            </div>
+            <div class="stat-card cyan">
+                <div class="sidebar-label">Hari Ini</div>
+                <div id="hari-ini" class="text-2xl font-bold text-slate-900 mono mt-1">0</div>
+                <i class="fa-solid fa-calendar-day text-slate-200 text-3xl absolute bottom-3 right-4"></i>
+            </div>
+            <div class="stat-card indigo">
+                <div class="sidebar-label">7 Hari</div>
+                <div id="minggu-ini" class="text-2xl font-bold text-slate-900 mono mt-1">0</div>
+                <i class="fa-solid fa-calendar-week text-slate-200 text-3xl absolute bottom-3 right-4"></i>
+            </div>
+            <div class="stat-card purple">
+                <div class="sidebar-label">30 Hari</div>
+                <div id="bulan-ini" class="text-2xl font-bold text-slate-900 mono mt-1">0</div>
+                <i class="fa-solid fa-calendar-days text-slate-200 text-3xl absolute bottom-3 right-4"></i>
+            </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="section-card">
+            <div class="section-header">
+                <div class="section-title">
+                    <i class="fa-solid fa-chart-column text-amber-500"></i>
+                    Grafik Deteksi 7 Hari Terakhir
                 </div>
-                <div>
-                    <h2 class="text-sm font-bold text-slate-200 uppercase tracking-wider">Riwayat Training Repositori Model</h2>
-                    <p class="text-xs text-slate-400">Log validasi keandalan model cerdas objek deteksi berbasis YOLO</p>
+                <span class="text-xs text-slate-400">Per hari</span>
+            </div>
+            <div class="px-5 pb-4 pt-4">
+                <div id="chart-container" class="flex items-end gap-2 h-28 relative">
+                    <!-- bars injected by JS -->
+                    <div class="text-xs text-slate-400 italic">Memuat data grafik...</div>
+                </div>
+                <div id="chart-labels" class="flex gap-2 mt-1"></div>
+            </div>
+        </div>
+
+        <!-- Log Table -->
+        <div class="section-card flex-1 flex flex-col" style="min-height:400px;">
+            <div class="section-header flex-wrap gap-3">
+                <div class="section-title">
+                    <i class="fa-solid fa-list-ul text-amber-500"></i>
+                    Log Riwayat Telemetri
+                </div>
+                <div class="flex flex-wrap items-center gap-1.5">
+                    <button onclick="setFilter('all')" id="filter-all" class="filter-btn active">Semua</button>
+                    <button onclick="setFilter('pothole')" id="filter-pothole" class="filter-btn">Pothole</button>
+                    <button onclick="setFilter('damage')" id="filter-damage" class="filter-btn">Damage</button>
+                    <div class="w-px h-5 bg-slate-200 mx-1"></div>
+                    <button onclick="loadHistory('today')" class="filter-btn period">Hari Ini</button>
+                    <button onclick="loadHistory('week')" class="filter-btn period">7 Hari</button>
+                    <button onclick="loadHistory('month')" class="filter-btn period">30 Hari</button>
+                    <button onclick="loadHistory('all')" class="filter-btn period">Semua</button>
+                    <button id="btn-resume-live" onclick="resumeLiveMode()" class="hidden filter-btn" style="background:#f59e0b;border-color:#f59e0b;color:#fff;font-weight:700;">
+                        <i class="fa-solid fa-circle-play mr-1"></i> Live
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto">
+                <table class="w-full text-left text-sm border-collapse">
+                    <thead class="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
+                        <tr class="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                            <th class="px-5 py-3">Waktu</th>
+                            <th class="px-5 py-3">Tipe & Tingkat Bahaya</th>
+                            <th class="px-5 py-3">Confidence</th>
+                            <th class="px-5 py-3">Koordinat GPS</th>
+                            <th class="px-5 py-3 text-center">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body" class="divide-y divide-slate-100 text-sm">
+                        <tr>
+                            <td colspan="5" class="px-5 py-10 text-center text-slate-400 text-sm italic">
+                                <i class="fa-regular fa-radar text-2xl block mb-2 text-slate-300"></i>
+                                Menunggu pengiriman telemetri...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="px-5 py-2 border-t border-slate-100 bg-slate-50 text-xs text-slate-400">
+                Menampilkan maks. 20 temuan terbaru &bull; <span id="row-count">0</span> total data tersimpan
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="lg:col-span-4 flex flex-col gap-5">
+
+        <!-- Evidence -->
+        <div class="section-card">
+            <div class="section-header">
+                <div class="section-title">
+                    <i class="fa-solid fa-camera text-orange-500"></i>
+                    Visual Evidence
+                </div>
+                <div class="flex items-center gap-2">
+                    <div id="new-data-counter" class="hidden bg-rose-500 text-white font-bold text-xs px-2 py-0.5 rounded-full animate-bounce">+0</div>
+                </div>
+            </div>
+            <div class="relative bg-slate-100" style="height:240px;">
+                <div id="img-placeholder">
+                    <i class="fa-regular fa-image text-4xl"></i>
+                    <span class="text-sm">Belum ada tangkapan visual</span>
+                </div>
+                <img id="latest-img" src="" alt="YOLO Screenshot" class="w-full h-full object-contain hidden absolute inset-0">
+                <div id="image-badge" class="absolute bottom-3 left-3 bg-slate-900/80 text-white text-xs px-2.5 py-1 rounded-md mono hidden">
+                    📍 <span id="badge-coordinates"></span>
+                </div>
+            </div>
+            <!-- Detail panel -->
+            <div id="evidence-detail" class="px-4 py-3 border-t border-slate-100 hidden">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <div class="sidebar-label">Jenis Kerusakan</div>
+                        <div id="ev-jenis" class="text-sm font-bold text-amber-600 uppercase">—</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="sidebar-label">Confidence</div>
+                        <div id="ev-conf" class="text-sm font-bold mono">—</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="sidebar-label">Timestamp</div>
+                        <div id="ev-time" class="text-xs mono text-slate-500">—</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map -->
+        <div class="section-card flex-1 flex flex-col" style="min-height:300px;">
+            <div class="section-header">
+                <div class="section-title">
+                    <i class="fa-solid fa-map-location-dot text-cyan-500"></i>
+                    GIS Real-time Map
+                </div>
+                <span class="text-xs text-slate-400 mono" id="map-count">0 titik</span>
+            </div>
+            <div id="map" class="flex-1" style="min-height:260px;"></div>
+        </div>
+
+        <!-- Training Table -->
+        <div class="section-card">
+            <div class="section-header">
+                <div class="section-title">
+                    <i class="fa-solid fa-clock-rotate-left text-indigo-500"></i>
+                    Repositori Model
                 </div>
             </div>
             <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse text-xs">
-                    <thead class="bg-slate-950 text-slate-400 uppercase tracking-wider font-mono border-b border-slate-800">
+                <table class="w-full text-left text-xs border-collapse">
+                    <thead class="bg-slate-50 border-b border-slate-200 text-slate-400 uppercase tracking-wider font-semibold">
                         <tr>
-                            <th class="px-5 py-3">Waktu Sinkronisasi</th>
-                            <th class="px-5 py-3">Identifier Model</th>
-                            <th class="px-5 py-3">Epoch</th>
-                            <th class="px-5 py-3">Skala Dataset</th>
-                            <th class="px-5 py-3">Hasil Evaluasi (mAP50)</th>
-                            <th class="px-5 py-3">Status</th>
+                            <th class="px-4 py-2.5">Model</th>
+                            <th class="px-4 py-2.5">mAP50</th>
+                            <th class="px-4 py-2.5">Epoch</th>
+                            <th class="px-4 py-2.5">Status</th>
                         </tr>
                     </thead>
-                    <tbody id="tabel-training" class="divide-y divide-slate-800/30 text-slate-300 font-medium">
-                        <tr>
-                            <td colspan="6" class="px-5 py-4 text-center text-slate-500 italic">Memuat repositori model cerdas...</td>
-                        </tr>
+                    <tbody id="tabel-training" class="divide-y divide-slate-100 text-slate-600">
+                        <tr><td colspan="4" class="px-4 py-3 text-center text-slate-400 italic">Memuat...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
 
-    </main>
+    </div>
+</main>
 
-    <script>
-        let globalData = [];
-        let isLiveMode = true;
-        let selectedIndex = -1;
-        let plottedCount = 0;
-        let isAudioEnabled = true;
-        let activeFilter = 'all';
-        let missedDataCount = 0; 
+<script>
+    let globalData = [];
+    let isLiveMode = true;
+    let selectedIndex = -1;
+    let plottedCount = 0;
+    let isAudioEnabled = true;
+    let activeFilter = 'all';
+    let missedDataCount = 0;
 
-        // Map setup
-        const map = L.map('map').setView([-6.200000, 106.816666], 15);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '© OpenStreetMap © CARTO'
-        }).addTo(map);
+    // Map setup
+    const map = L.map('map').setView([-6.200000, 106.816666], 15);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '© OpenStreetMap © CARTO'
+    }).addTo(map);
+    const markerGroup = L.layerGroup().addTo(map);
 
-        const markerGroup = L.layerGroup().addTo(map);
+    // Toast
+    function showToast(message, type = 'warning') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type === 'critical' ? 'critical' : ''}`;
+        toast.innerHTML = `
+            <i class="fa-solid fa-triangle-exclamation text-${type === 'critical' ? 'red' : 'amber'}-500"></i>
+            <div>
+                <div style="font-weight:600;font-size:12px;">${type === 'critical' ? '🚨 CRITICAL' : '⚠️ WARNING'} — Deteksi Baru</div>
+                <div style="font-size:11px;color:#64748b;">${message}</div>
+            </div>
+        `;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 3200);
+    }
 
-        // Sound Engine
-        function playRadarBeep() {
-            if (!isAudioEnabled) return;
-            try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioCtx.createOscillator();
-                const gainNode = audioCtx.createGain();
-                oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); 
-                gainNode.gain.setValueAtTime(0.04, audioCtx.currentTime); 
-                oscillator.connect(gainNode);
-                gainNode.connect(audioCtx.destination);
-                oscillator.start();
-                oscillator.stop(audioCtx.currentTime + 0.08); 
-            } catch (e) { console.log(e); }
-        }
+    // Sound Engine
+    function playRadarBeep() {
+        if (!isAudioEnabled) return;
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            gain.gain.setValueAtTime(0.04, ctx.currentTime);
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.start(); osc.stop(ctx.currentTime + 0.08);
+        } catch(e) {}
+    }
 
-        function toggleAudio() {
-            isAudioEnabled = !isAudioEnabled;
-            const icon = document.getElementById('audio-icon');
-            const text = document.getElementById('audio-text');
-            if (isAudioEnabled) {
-                icon.className = "fa-solid fa-volume-high text-emerald-400";
-                text.innerText = "Radar: ON";
-            } else {
-                icon.className = "fa-solid fa-volume-xmark text-rose-500";
-                text.innerText = "Radar: OFF";
-            }
-        }
+    function toggleAudio() {
+        isAudioEnabled = !isAudioEnabled;
+        document.getElementById('audio-icon').className = isAudioEnabled
+            ? "fa-solid fa-volume-high text-emerald-500 text-xs"
+            : "fa-solid fa-volume-xmark text-rose-500 text-xs";
+        document.getElementById('audio-text').innerText = isAudioEnabled ? 'Suara: ON' : 'Suara: OFF';
+    }
 
-        // Live Dashboard Engine Sync
-        async function updateDashboard() {
-            try {
-                const response = await fetch('/api/data');
-                const data = await response.json();
-                globalData = data;
-                
-                // Selalu render tabel setelah data di-fetch
-                renderTable();
-                
-                if (data.length === 0) return;
-                document.getElementById('total-detections').innerText = data.length;
+    // Format time
+    function formatTime(ts) {
+        if (!ts) return '—';
+        const d = new Date(ts);
+        if (isNaN(d)) return ts;
+        return d.toLocaleString('id-ID', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    }
 
-                if (data.length > plottedCount) {
-                    if (plottedCount > 0) {
-                        playRadarBeep();
-                        if (!isLiveMode) {
-                            missedDataCount += (data.length - plottedCount);
-                            const counterBadge = document.getElementById('new-data-counter');
-                            counterBadge.innerText = `+${missedDataCount} Baru`;
-                            counterBadge.classList.remove('hidden');
-                        }
-                    }
-                    
-                    if (data.length < plottedCount) {
-                        markerGroup.clearLayers();
-                        plottedCount = 0;
-                    }
+    // Dashboard update
+    async function updateDashboard() {
+        try {
+            const response = await fetch('/api/data');
+            const data = await response.json();
+            const prevCount = globalData.length;
+            globalData = data;
 
-                    for (let i = plottedCount; i < data.length; i++) {
-                        const item = data[i];
-                        const marker = L.marker([item.lat, item.lon]).addTo(markerGroup);
-                        const gmapsUrl = `https://www.google.com/maps?q=${item.lat},${item.lon}`;
-                        
-                        marker.bindPopup(`
-                            <div class="text-slate-900 font-sans">
-                                <b class="capitalize text-amber-600">${item.jenis}</b><br>
-                                Akurasi: ${(item.confidence*100).toFixed(0)}%<br>
-                                <a href="${gmapsUrl}" target="_blank" class="inline-block mt-2 text-xs bg-blue-600 text-white font-bold px-2 py-1 rounded no-underline hover:bg-blue-700">
-                                    <i class="fa-solid fa-location-dot"></i> Buka Google Maps
-                                </a>
-                            </div>
-                        `);
-                    }
-                    plottedCount = data.length;
-                }
-
-                if (isLiveMode) {
-                    const latest = data[data.length - 1];
-                    renderVisuals(latest);
-                    document.getElementById('latest-conf').innerText = `${latest.jenis.toUpperCase()} (${(latest.confidence * 100).toFixed(0)}%)`;
-                    map.panTo([latest.lat, latest.lon]);
-                }
-
-            } catch (err) {
-                console.error("Sync Error:", err);
-            }
-        }
-
-        // Render Capture Image
-        function renderVisuals(item) {
-            if (item && item.image) {
-                document.getElementById('placeholder-text').classList.add('hidden');
-                const imgElement = document.getElementById('latest-img');
-                
-                if(item.image.startsWith('http')) {
-                    imgElement.src = item.image;
-                } else if(item.image.startsWith('data:image')) {
-                    // Sudah ada prefix lengkap dari detect.py
-                    imgElement.src = item.image;
-                } else {
-                    // Raw base64 tanpa prefix
-                    imgElement.src = "data:image/jpeg;base64," + item.image;
-                }
-                imgElement.classList.remove('hidden');
-
-                const badge = document.getElementById('image-badge');
-                document.getElementById('badge-coordinates').innerText = `${item.lat.toFixed(5)}, ${item.lon.toFixed(5)}`;
-                badge.classList.remove('hidden');
-            }
-        }
-
-        function setFilter(type) {
-            activeFilter = type;
-            ['all', 'pothole', 'damage'].forEach(t => {
-                const btn = document.getElementById(`filter-${t}`);
-                if (t === type) {
-                    btn.className = "px-2.5 py-1 rounded bg-amber-500 text-slate-950 font-bold transition-all";
-                } else {
-                    btn.className = "px-2.5 py-1 rounded text-slate-400 hover:text-slate-200 transition-all";
-                }
-            });
+            document.getElementById('row-count').innerText = data.length;
             renderTable();
-        }
 
-        // Render Logs Data Table
-        function renderTable() {
-            let tableHtml = '';
-            let renderedCount = 0;
+            if (data.length === 0) return;
+            document.getElementById('total-detections').innerText = data.length;
+            document.getElementById('map-count').innerText = data.length + ' titik';
 
-            for (let i = globalData.length - 1; i >= 0; i--) {
-                if (renderedCount >= 20) break; 
-                const item = globalData[i];
-                const confPercent = (item.confidence * 100).toFixed(0);
+            if (data.length > plottedCount) {
+                if (plottedCount > 0) {
+                    playRadarBeep();
+                    const newItem = data[data.length - 1];
+                    const conf = (newItem.confidence * 100).toFixed(0);
+                    const isUrgent = conf >= 80;
+                    showToast(`${newItem.jenis.toUpperCase()} — ${conf}% confidence @ ${newItem.lat.toFixed(4)}, ${newItem.lon.toFixed(4)}`, isUrgent ? 'critical' : 'warning');
 
-                if (activeFilter !== 'all' && !item.jenis.toLowerCase().includes(activeFilter.toLowerCase())) {
-                    continue; 
+                    if (!isLiveMode) {
+                        missedDataCount += (data.length - plottedCount);
+                        const badge = document.getElementById('new-data-counter');
+                        badge.innerText = `+${missedDataCount}`;
+                        badge.classList.remove('hidden');
+                    }
                 }
-                renderedCount++;
 
-                const isUrgent = confPercent >= 80;
-                const severityBadge = isUrgent 
-                    ? `<span class="bg-rose-500/10 text-rose-400 text-[10px] border border-rose-500/20 px-1.5 py-0.5 rounded font-bold">CRITICAL</span>`
-                    : `<span class="bg-amber-500/10 text-amber-400 text-[10px] border border-amber-500/20 px-1.5 py-0.5 rounded font-bold">WARNING</span>`;
+                if (data.length < plottedCount) { markerGroup.clearLayers(); plottedCount = 0; }
 
-                const isSelected = (!isLiveMode && selectedIndex === i);
-                const activeClass = isSelected 
-                    ? "bg-slate-800 border-l-4 border-amber-500 font-bold shadow-inner" 
-                    : "hover:bg-slate-800/40 cursor-pointer";
-
-                const googleMapsUrl = `https://www.google.com/maps?q=${item.lat},${item.lon}`;
-
-                tableHtml += `
-                    <tr class="border-b border-slate-800/40 transition-all duration-150 ${activeClass}">
-                        <td onclick="viewHistory(${i})" class="px-5 py-3 text-slate-200 capitalize flex items-center gap-2">
-                            <i class="fa-solid fa-circle text-[7px] ${isUrgent ? 'text-rose-500' : 'text-amber-500'}"></i>
-                            <span class="font-semibold text-amber-400">${item.jenis}</span>
-                            ${severityBadge}
-                        </td>
-                        <td onclick="viewHistory(${i})" class="px-5 py-3">
-                            <div class="flex items-center gap-2">
-                                <span class="text-slate-300 font-mono">${confPercent}%</span>
-                                <div class="w-12 bg-slate-800 rounded-full h-1 hidden sm:block overflow-hidden">
-                                    <div class="${isUrgent ? 'bg-rose-500' : 'bg-amber-500'} h-1 rounded-full" style="width: ${confPercent}%"></div>
-                                </div>
-                            </div>
-                        </td>
-                        <td onclick="viewHistory(${i})" class="px-5 py-3 font-mono text-xs text-slate-400">
-                            ${item.lat.toFixed(5)}, ${item.lon.toFixed(5)}
-                        </td>
-                        <td class="px-5 py-3 text-center">
-                            <div class="flex items-center justify-center gap-2">
-                                <button onclick="copyToClipboard('${item.lat}', '${item.lon}', this)" title="Salin Koordinat" class="bg-slate-800 hover:bg-slate-700 text-slate-300 w-7 h-7 flex items-center justify-center rounded transition-all border border-slate-700">
-                                    <i class="fa-regular fa-copy text-xs"></i>
-                                </button>
-                                <a href="${googleMapsUrl}" target="_blank" title="Buka di Google Maps" class="bg-blue-600 hover:bg-blue-500 text-white w-7 h-7 flex items-center justify-center rounded transition-all shadow-md shadow-blue-600/10">
-                                    <i class="fa-solid fa-arrow-up-right-from-square text-[11px]"></i>
-                                </a>
-                            </div>
-                        </td>
-                    </tr>
-                `;
+                for (let i = plottedCount; i < data.length; i++) {
+                    const item = data[i];
+                    const conf = (item.confidence * 100).toFixed(0);
+                    const isUrgent = conf >= 80;
+                    const color = isUrgent ? '#ef4444' : '#f59e0b';
+                    const icon = L.divIcon({
+                        html: `<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 0 6px ${color}88;"></div>`,
+                        className: '', iconSize: [14,14], iconAnchor: [7,7]
+                    });
+                    const marker = L.marker([item.lat, item.lon], { icon }).addTo(markerGroup);
+                    const gmapsUrl = `https://www.google.com/maps?q=${item.lat},${item.lon}`;
+                    marker.bindPopup(`
+                        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:13px;">
+                            <strong style="color:${isUrgent?'#dc2626':'#d97706'};text-transform:capitalize;">${item.jenis}</strong><br>
+                            Confidence: <strong>${conf}%</strong><br>
+                            ${item.timestamp ? '<small style="color:#64748b;">' + formatTime(item.timestamp) + '</small><br>' : ''}
+                            <a href="${gmapsUrl}" target="_blank" style="display:inline-block;margin-top:6px;background:#1e293b;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;text-decoration:none;">
+                                <i class="fa-solid fa-location-dot"></i> Google Maps
+                            </a>
+                        </div>
+                    `);
+                }
+                plottedCount = data.length;
             }
 
-            if(renderedCount === 0) {
-                tableHtml = `<tr><td colspan="4" class="px-5 py-8 text-center text-slate-500 italic">Tidak ada data yang cocok dengan filter...</td></tr>`;
+            if (isLiveMode) {
+                const latest = data[data.length - 1];
+                renderVisuals(latest);
+                const conf = (latest.confidence * 100).toFixed(0);
+                document.getElementById('latest-conf').innerText = `${latest.jenis.toUpperCase()} — ${conf}%`;
+                map.panTo([latest.lat, latest.lon]);
             }
-            document.getElementById('table-body').innerHTML = tableHtml;
+        } catch(err) { console.error("Sync Error:", err); }
+    }
+
+    function renderVisuals(item) {
+        if (!item) return;
+        const placeholder = document.getElementById('img-placeholder');
+        const imgEl = document.getElementById('latest-img');
+        const badge = document.getElementById('image-badge');
+        const detail = document.getElementById('evidence-detail');
+
+        if (item.image) {
+            placeholder.style.display = 'none';
+            imgEl.src = item.image.startsWith('http') ? item.image
+                : item.image.startsWith('data:') ? item.image
+                : 'data:image/jpeg;base64,' + item.image;
+            imgEl.classList.remove('hidden');
         }
 
-        function viewHistory(index) {
-            isLiveMode = false;
-            selectedIndex = index;
-            
-            const badge = document.getElementById('mode-badge');
-            badge.innerText = "MODE INVESTIGASI ARSIP";
-            badge.className = "text-[10px] bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold px-2.5 py-1 rounded-md text-center";
-            
-            document.getElementById('btn-resume-live').classList.remove('hidden');
+        document.getElementById('badge-coordinates').innerText = `${item.lat.toFixed(5)}, ${item.lon.toFixed(5)}`;
+        badge.classList.remove('hidden');
 
-            const selectedItem = globalData[index];
-            renderVisuals(selectedItem);
-            document.getElementById('latest-conf').innerText = `ARSIP: ${selectedItem.jenis.toUpperCase()}`;
-            
-            map.setView([selectedItem.lat, selectedItem.lon], 18);
-            renderTable();
-        }
+        detail.classList.remove('hidden');
+        document.getElementById('ev-jenis').innerText = item.jenis || '—';
+        document.getElementById('ev-conf').innerText = ((item.confidence || 0) * 100).toFixed(0) + '%';
+        document.getElementById('ev-time').innerText = formatTime(item.timestamp);
+    }
 
-        function resumeLiveMode() {
-            isLiveMode = true;
-            selectedIndex = -1;
-            missedDataCount = 0; 
-            
-            document.getElementById('new-data-counter').classList.add('hidden');
-            document.getElementById('btn-resume-live').classList.add('hidden');
-            
-            const badge = document.getElementById('mode-badge');
-            badge.innerText = "LIVE MONITORING";
-            badge.className = "text-[10px] bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold px-2.5 py-1 rounded-md text-center";
-            
-            if (globalData.length > 0) {
-                const latest = globalData[globalData.length - 1];
-                map.setView([latest.lat, latest.lon], 15);
-            }
-            renderTable();
-        }
-
-        function copyToClipboard(lat, lon, button) {
-            const coordText = `${lat}, ${lon}`;
-            navigator.clipboard.writeText(coordText).then(() => {
-                const originalHtml = button.innerHTML;
-                button.innerHTML = '<i class="fa-solid fa-check text-emerald-400 text-xs"></i>';
-                button.classList.add('border-emerald-500/40');
-                setTimeout(() => {
-                    button.innerHTML = originalHtml;
-                    button.classList.remove('border-emerald-500/40');
-                }, 1500);
-            }).catch(err => { console.error(err); });
-        }
-
-        function exportToCSV() {
-            if (globalData.length === 0) {
-                alert("Belum ada data rekaman deteksi lubang untuk diekspor!");
-                return;
-            }
-            let csvContent = "data:text/csv;charset=utf-8,";
-            csvContent += "No,Jenis Kerusakan,Akurasi (Confidence),Latitude,Longitude\n";
-            globalData.forEach((item, idx) => {
-                const confPercent = (item.confidence * 100).toFixed(0) + "%";
-                csvContent += `${idx + 1},${item.jenis},${confPercent},${item.lat},${item.lon}\n`;
-            });
-            const encodedUri = encodeURI(csvContent);
-            const downloadLink = document.createElement("a");
-            downloadLink.setAttribute("href", encodedUri);
-            downloadLink.setAttribute("download", "Laporan_AI_Kerusakan_Jalan.csv");
-            document.body.appendChild(downloadLink);
-            downloadLink.click();
-            document.body.removeChild(downloadLink);
-        }
-
-        async function loadTrainingHistory() {
-            try {
-                const historicalLogs = [{ 
-                    waktu: "2026-05-10 14:35:10", 
-                    model: "YOLOv8s-RoadDamage-v3.0", 
-                    epoch: "Epoch 100/100", 
-                    dataset: "2,500 Images (Augmented)", 
-                    map50: "0.892", 
-                    status: "Production Ready" 
-                }];
-
-                let logs = [];
-                try {
-                    const response = await fetch('/api/training');
-                    if (response.ok) logs = await response.json();
-                } catch (e) { logs = historicalLogs; }
-
-                if (!logs || logs.length === 0) logs = historicalLogs;
-
-                const tbody = document.getElementById('tabel-training');
-                tbody.innerHTML = '';
-                
-                logs.forEach(log => {
-                    tbody.innerHTML += `
-                        <tr class="hover:bg-slate-800/30 transition-all border-b border-slate-800/40">
-                            <td class="px-5 py-3 font-mono text-amber-400">${log.waktu}</td>
-                            <td class="px-5 py-3 font-semibold text-slate-200">${log.model}</td>
-                            <td class="px-5 py-3 font-mono text-indigo-400">${log.epoch}</td>
-                            <td class="px-5 py-3 text-slate-400">${log.dataset}</td>
-                            <td class="px-5 py-3"><span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold font-mono px-2 py-0.5 rounded">${log.map50}</span></td>
-                            <td class="px-5 py-3 text-emerald-400"><i class="fa-solid fa-circle-check mr-1 text-[10px]"></i> ${log.status}</td>
-                        </tr>
-                    `;
-                });
-            } catch (err) { console.error(err); }
-        }
-
-        async function loadHistory(mode) {
-            try {
-                const response = await fetch(`/api/history?mode=${mode}`);
-                const data = await response.json();
-                globalData = data;
-                renderTable();
-                document.getElementById('total-detections').innerText = data.length;
-            } catch(err) { console.error("History Error:", err); }
-        }
-
-        async function loadStatistik() {
-            try {
-                const response = await fetch('/api/statistik');
-                const data = await response.json();
-                document.getElementById('hari-ini').innerText = data.hari_ini;
-                document.getElementById('minggu-ini').innerText = data.minggu_ini;
-                document.getElementById('bulan-ini').innerText = data.bulan_ini;
-            } catch(err) { console.error("Statistik Error:", err); }
-        }
-
-        document.addEventListener("DOMContentLoaded", () => {
-            updateDashboard();
-            loadTrainingHistory();
-            loadStatistik();
-            setInterval(updateDashboard, 1000);
-            setInterval(loadStatistik, 5000);
+    function setFilter(type) {
+        activeFilter = type;
+        ['all','pothole','damage'].forEach(t => {
+            const btn = document.getElementById(`filter-${t}`);
+            if (btn) btn.className = `filter-btn ${t === type ? 'active' : ''}`;
         });
-    </script>
+        renderTable();
+    }
+
+    function renderTable() {
+        let html = '';
+        let count = 0;
+        for (let i = globalData.length - 1; i >= 0; i--) {
+            if (count >= 20) break;
+            const item = globalData[i];
+            if (activeFilter !== 'all' && !item.jenis.toLowerCase().includes(activeFilter)) continue;
+            count++;
+
+            const conf = (item.confidence * 100).toFixed(0);
+            const isUrgent = conf >= 80;
+            const isSelected = (!isLiveMode && selectedIndex === i);
+            const badge = isUrgent
+                ? `<span class="badge badge-critical">CRITICAL</span>`
+                : `<span class="badge badge-warning">WARNING</span>`;
+            const gmapsUrl = `https://www.google.com/maps?q=${item.lat},${item.lon}`;
+
+            html += `
+            <tr class="log-row ${isSelected ? 'selected' : ''} border-b border-slate-100">
+                <td onclick="viewHistory(${i})" class="px-5 py-3 mono text-xs text-slate-400 whitespace-nowrap">${formatTime(item.timestamp) || '—'}</td>
+                <td onclick="viewHistory(${i})" class="px-5 py-3">
+                    <div class="flex items-center gap-2">
+                        <span class="font-semibold text-slate-800 capitalize">${item.jenis}</span>
+                        ${badge}
+                    </div>
+                </td>
+                <td onclick="viewHistory(${i})" class="px-5 py-3">
+                    <div class="flex items-center gap-2">
+                        <span class="mono text-xs font-semibold">${conf}%</span>
+                        <div class="conf-bar w-14 hidden sm:block">
+                            <div class="conf-fill ${isUrgent ? 'critical' : 'warning'}" style="width:${conf}%"></div>
+                        </div>
+                    </div>
+                </td>
+                <td onclick="viewHistory(${i})" class="px-5 py-3 mono text-xs text-slate-500">${item.lat.toFixed(5)}, ${item.lon.toFixed(5)}</td>
+                <td class="px-5 py-3 text-center">
+                    <div class="flex items-center justify-center gap-1.5">
+                        <button onclick="copyToClipboard('${item.lat}','${item.lon}',this)" title="Salin Koordinat"
+                            class="w-7 h-7 flex items-center justify-center rounded border border-slate-200 hover:bg-slate-100 transition-all text-slate-500">
+                            <i class="fa-regular fa-copy text-xs"></i>
+                        </button>
+                        <a href="${gmapsUrl}" target="_blank" title="Buka di Google Maps"
+                            class="w-7 h-7 flex items-center justify-center rounded bg-slate-900 hover:bg-slate-700 text-white transition-all">
+                            <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
+                        </a>
+                    </div>
+                </td>
+            </tr>`;
+        }
+
+        if (count === 0) {
+            html = `<tr><td colspan="5" class="px-5 py-10 text-center text-slate-400 text-sm italic">Tidak ada data yang cocok dengan filter.</td></tr>`;
+        }
+        document.getElementById('table-body').innerHTML = html;
+    }
+
+    function viewHistory(index) {
+        isLiveMode = false;
+        selectedIndex = index;
+        document.getElementById('btn-resume-live').classList.remove('hidden');
+
+        const badge = document.getElementById('mode-badge');
+        badge.innerHTML = `<i class="fa-solid fa-folder-open text-xs"></i> MODE ARSIP`;
+        badge.className = "flex items-center gap-2 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-full";
+
+        const item = globalData[index];
+        renderVisuals(item);
+        document.getElementById('latest-conf').innerText = `ARSIP: ${item.jenis.toUpperCase()}`;
+        map.setView([item.lat, item.lon], 18);
+        renderTable();
+    }
+
+    function resumeLiveMode() {
+        isLiveMode = true;
+        selectedIndex = -1;
+        missedDataCount = 0;
+        document.getElementById('new-data-counter').classList.add('hidden');
+        document.getElementById('btn-resume-live').classList.add('hidden');
+
+        const badge = document.getElementById('mode-badge');
+        badge.innerHTML = `<div class="pulse-dot"></div> LIVE MONITORING`;
+        badge.className = "flex items-center gap-2 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full";
+
+        if (globalData.length > 0) map.setView([globalData[globalData.length-1].lat, globalData[globalData.length-1].lon], 15);
+        renderTable();
+    }
+
+    function copyToClipboard(lat, lon, btn) {
+        navigator.clipboard.writeText(`${lat}, ${lon}`).then(() => {
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-check text-emerald-500 text-xs"></i>';
+            setTimeout(() => btn.innerHTML = orig, 1500);
+        });
+    }
+
+    function exportToCSV() {
+        if (!globalData.length) { alert("Belum ada data untuk diekspor!"); return; }
+        let csv = "data:text/csv;charset=utf-8,No,Waktu,Jenis Kerusakan,Confidence,Latitude,Longitude\n";
+        globalData.forEach((item, i) => {
+            csv += `${i+1},${item.timestamp||''},${item.jenis},${(item.confidence*100).toFixed(0)}%,${item.lat},${item.lon}\n`;
+        });
+        const a = document.createElement('a');
+        a.setAttribute('href', encodeURI(csv));
+        a.setAttribute('download', 'Laporan_Kerusakan_Jalan.csv');
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+
+    // Chart
+    function renderChart(data) {
+        const container = document.getElementById('chart-container');
+        const labelsEl  = document.getElementById('chart-labels');
+        if (!data || data.length === 0) { container.innerHTML = '<div class="text-xs text-slate-400 italic">Tidak ada data grafik.</div>'; return; }
+
+        const max = Math.max(...data.map(d => d.count), 1);
+        container.innerHTML = '';
+        labelsEl.innerHTML = '';
+
+        data.forEach(d => {
+            const pct = (d.count / max) * 100;
+            const bar = document.createElement('div');
+            bar.className = 'chart-bar';
+            bar.style.flex = '1';
+            bar.innerHTML = `
+                <div class="bar-tooltip">${d.count} deteksi</div>
+                <div class="bar-fill" style="height:${pct}%"></div>`;
+            container.appendChild(bar);
+
+            const lbl = document.createElement('div');
+            lbl.style.cssText = 'flex:1;text-align:center;font-size:10px;color:#94a3b8;font-family:IBM Plex Mono,monospace;';
+            lbl.innerText = d.label;
+            labelsEl.appendChild(lbl);
+        });
+    }
+
+    async function loadTrainingHistory() {
+        const fallback = [{ waktu:"2026-05-10 14:35", model:"YOLOv8s-RoadDamage-v3.0", epoch:"100", dataset:"2,500 Img", map50:"0.892", status:"Production Ready" }];
+        let logs = [];
+        try {
+            const r = await fetch('/api/training');
+            if (r.ok) logs = await r.json();
+        } catch(e) { logs = fallback; }
+        if (!logs || !logs.length) logs = fallback;
+
+        const tbody = document.getElementById('tabel-training');
+        tbody.innerHTML = '';
+        logs.forEach(log => {
+            tbody.innerHTML += `
+            <tr class="hover:bg-slate-50 transition-all border-b border-slate-100">
+                <td class="px-4 py-2.5 font-semibold text-slate-700">${log.model}</td>
+                <td class="px-4 py-2.5"><span class="badge badge-ok mono">${log.map50}</span></td>
+                <td class="px-4 py-2.5 text-slate-500 mono">${log.epoch}</td>
+                <td class="px-4 py-2.5 text-emerald-600 font-medium"><i class="fa-solid fa-circle-check mr-1 text-xs"></i>${log.status}</td>
+            </tr>`;
+        });
+    }
+
+    async function loadHistory(mode) {
+        try {
+            const r = await fetch(`/api/history?mode=${mode}`);
+            const data = await r.json();
+            globalData = data;
+            renderTable();
+            document.getElementById('total-detections').innerText = data.length;
+            document.getElementById('row-count').innerText = data.length;
+        } catch(e) { console.error(e); }
+    }
+
+    async function loadStatistik() {
+        try {
+            const r = await fetch('/api/statistik');
+            const data = await r.json();
+            document.getElementById('hari-ini').innerText = data.hari_ini;
+            document.getElementById('minggu-ini').innerText = data.minggu_ini;
+            document.getElementById('bulan-ini').innerText = data.bulan_ini;
+
+            // Render simple chart from weekly breakdown if available
+            if (data.weekly_chart) renderChart(data.weekly_chart);
+        } catch(e) { console.error(e); }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        updateDashboard();
+        loadTrainingHistory();
+        loadStatistik();
+        setInterval(updateDashboard, 1000);
+        setInterval(loadStatistik, 5000);
+    });
+</script>
 </body>
 </html>
