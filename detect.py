@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 # ke lokasi best.pt hasil training yolov8n-seg (biasanya di runs/segment/... bukan runs/detect/...)
 MODEL_PATH = "runs/segment/train/weights/best.pt"
 VIDEO_PATH = "src/video.mp4"
-API_URL = os.getenv("API_URL", "http://127.0.0.1:5000/upload") 
+API_URL = os.getenv("API_URL", "https://monitoring-ta-mauve.vercel.app/upload") 
 
 # 1. Load Model YOLOv8 (Segmentasi)
 try:
