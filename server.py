@@ -1,4 +1,5 @@
 import os
+import json
 import math
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, request, render_template, session, redirect, url_for
@@ -13,23 +14,41 @@ AKUN_PENGGUNA = {
     "dinas": generate_password_hash("petugas1")
 }
 
-# Data Contoh Hasil Deteksi Jalan
-database_deteksi = [
-    {
-        "id": 1,
-        "lat": -6.2088, "lon": 106.8456,
-        "jenis": "Pothole (Lubang)", "confidence": 0.88,
-        "waktu": "04-06-2026 14:20",
-        "image": "https://images.unsplash.com/photo-1515162305285-0293e4767cc2?auto=format&fit=crop&w=400&q=80"
-    },
-    {
-        "id": 2,
-        "lat": -6.2100, "lon": 106.8490,
-        "jenis": "Longitudinal Crack (Retak Memanjang)", "confidence": 0.72,
-        "waktu": "04-06-2026 15:05",
-        "image": "https://images.unsplash.com/photo-1599740482930-da1022797e8d?auto=format&fit=crop&w=400&q=80"
-    }
-]
+FILE_DATA = "data_deteksi.json"
+
+# Fungsi membaca data dari file JSON
+def muat_database():
+    if os.path.exists(FILE_DATA):
+        with open(FILE_DATA, "r") as f:
+            try:
+                return json.load(f)
+            except:
+                pass
+    # Data bawaan awal jika file JSON belum ada
+    return [
+        {
+            "id": 1,
+            "lat": -6.2088, "lon": 106.8456,
+            "jenis": "Pothole (Lubang)", "confidence": 0.88,
+            "waktu": "04-06-2026 14:20",
+            "image": "https://images.unsplash.com/photo-1515162305285-0293e4767cc2?auto=format&fit=crop&w=400&q=80"
+        },
+        {
+            "id": 2,
+            "lat": -6.2100, "lon": 106.8490,
+            "jenis": "Longitudinal Crack (Retak Memanjang)", "confidence": 0.72,
+            "waktu": "04-06-2026 15:05",
+            "image": "https://images.unsplash.com/photo-1599740482930-da1022797e8d?auto=format&fit=crop&w=400&q=80"
+        }
+    ]
+
+# Fungsi menyimpan data ke file JSON
+def simpan_database(data):
+    with open(FILE_DATA, "w") as f:
+        json.dump(data, f, indent=4)
+
+# Load database awal saat server menyala
+database_deteksi = muat_database()
 
 # Riwayat Training
 database_training = [
@@ -117,7 +136,6 @@ def get_history():
 
     return jsonify(hasil)
 
-# ✅ FIX: Route /api/statistik duplikat dihapus, dijadikan satu saja
 @app.route('/api/statistik', methods=['GET'])
 def get_statistik():
     if 'user' not in session:
@@ -173,6 +191,9 @@ def upload_data():
 
     if not apakah_duplikat:
         database_deteksi.append(data_baru)
+
+    # Simpan perubahan permanen ke file JSON
+    simpan_database(database_deteksi)
 
     return jsonify({"status": "success"}), 200
 
